@@ -39,6 +39,9 @@ The two Python services use only the standard library and have unit tests.
 
 ## Quick start
 
+Installing with a coding agent? Point it at [AI_INSTALL.md](AI_INSTALL.md); it contains the checks, the adaptations
+and the verification commands.
+
 ```sh
 cp .env.example .env            # fill in every value; generators are noted inline
 ./install.sh                    # links + enables the user units, starts strata, docker compose up -d
@@ -99,9 +102,12 @@ curl -u admin:$ADMIN_TOKEN -X POST http://127.0.0.1:2027/restart   # also /start
 
 ## LiteLLM UI accounts
 
-On first start, log in to `/litellm/ui` with the master key, create a proper admin user, then keep
-`disable_env_credential_login: true` in `litellm/config.yaml` (already set) so the master key can no longer be used to
-sign in to the UI.
+`litellm/config.yaml` ships with `disable_env_credential_login: true`, which also blocks signing in with the master
+key. For the very first login, comment that line out, restart litellm, sign in to `/litellm/ui` as `admin` with the
+master key, create your own admin user, then put the line back and restart again **immediately**. While the env login
+is enabled, anyone holding the master key or the `UI_USERNAME`/`UI_PASSWORD` env values can sign in as a proxy admin
+with a shared static secret, so do not leave it on longer than that one session. From then on only database accounts
+can sign in. [AI_INSTALL.md](AI_INSTALL.md) step 9 spells this out.
 
 ## Adapting it
 

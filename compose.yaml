@@ -6,6 +6,7 @@ services:
     container_name: homepage
     network_mode: host # :3000
     environment:
+      HOSTNAME: 127.0.0.1 # bind loopback only; the tunnel/reverse proxy fronts it later
       PUID: 1000
       PGID: 1000
       HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS}
@@ -19,6 +20,7 @@ services:
     image: postgres:17-alpine
     container_name: litellm-db
     network_mode: host # :5432
+    command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
     environment:
       POSTGRES_USER: litellm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -35,7 +37,7 @@ services:
     image: ghcr.io/berriai/litellm-database:main-stable
     container_name: litellm
     network_mode: host # :4000, UI at /ui
-    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    command: ["--config", "/app/config.yaml", "--host", "127.0.0.1", "--port", "4000"]
     environment:
       DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@127.0.0.1:5432/litellm
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}

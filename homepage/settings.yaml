@@ -6,6 +6,9 @@ layout:
   Inference:
     style: row
     columns: 2
+  Agents:
+    style: row
+    columns: 2
   Admin:
     style: row
     columns: 2

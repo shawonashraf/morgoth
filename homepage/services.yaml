@@ -25,6 +25,12 @@
               label: proxy
             - field: db
               label: db
+- Agents:
+    - Hermes:
+        icon: mdi-robot
+        href: /hermes/
+        description: Hermes Agent gateway · its own login
+        siteMonitor: http://127.0.0.1:9119/login
 - Admin:
     - Strata control:
         icon: mdi-power

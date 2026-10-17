@@ -20,6 +20,17 @@ http://:2023 {
 		reverse_proxy 127.0.0.1:4000
 	}
 
+	# Hermes gateway keeps its own login; it rewrites its asset URLs from X-Forwarded-Prefix
+	redir /hermes /hermes/
+	handle /hermes/* {
+		route {
+			uri strip_prefix /hermes
+			reverse_proxy 127.0.0.1:9119 {
+				header_up X-Forwarded-Prefix /hermes
+			}
+		}
+	}
+
 	redir /admin /admin/
 	redir /strata /strata/
 

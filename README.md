@@ -10,6 +10,7 @@ Caddy on `127.0.0.1:2023` is the one port to publish (Tailscale Funnel 443 -> 20
 | `/litellm/v1`, `/litellm/ui` | LiteLLM proxy + UI | its own keys / UI account | docker `litellm` + `litellm-db` (:4000) |
 | `/admin/` | Strata control page | login page | host: `morgoth-admin.service` (:2027) |
 | `/strata/` | Strata's own chat UI | login page + strata key | host: `strata.service` (:2026) |
+| `/hermes/` | Hermes Agent gateway | its own login | host process started by you (:9119) |
 | not proxied | Cockpit | Linux account | host: `cockpit.socket` (:9090, all interfaces) |
 
 Locally: http://localhost:2023. Publicly, once the funnel is on: `https://<your host>`.

@@ -21,6 +21,9 @@ Homepage + LiteLLM proxy + control page for the strata LLM server on this machin
   use `route { import login; uri strip_prefix ...; reverse_proxy }` on purpose: `handle_path` would strip the prefix
   before the auth check and break the return-to URL. The page template uses `{{rd}}` placeholders, not `%` formatting,
   because the CSS contains `%`.
+- Hermes gateway (`127.0.0.1:9119`, started by the user, not managed here) is proxied at `/hermes/` with the prefix
+  stripped and `X-Forwarded-Prefix: /hermes` set; hermes rewrites its asset URLs from that header. Not behind our
+  login page because its apps authenticate with their own tokens.
 - LiteLLM uses `SERVER_ROOT_PATH=/litellm`; its API is `/litellm/v1` everywhere, including on :4000 directly.
 - Bind-mounted configs (`litellm/config.yaml`, `caddy/Caddyfile`) need `docker compose restart <svc>`; `up -d` won't notice.
 

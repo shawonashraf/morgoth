@@ -1,0 +1,10 @@
+- Docs:
+    - Strata:
+        - abbr: ST
+          href: https://github.com/Niko1221/Strata
+    - LiteLLM:
+        - abbr: LL
+          href: https://docs.litellm.ai/docs/proxy/configs
+    - Homepage:
+        - abbr: HP
+          href: https://gethomepage.dev/configs/

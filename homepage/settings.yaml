@@ -1,0 +1,11 @@
+title: Morgoth
+headerStyle: boxed
+theme: dark
+color: slate
+layout:
+  Inference:
+    style: row
+    columns: 2
+  Admin:
+    style: row
+    columns: 2

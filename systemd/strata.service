@@ -1,0 +1,15 @@
+[Unit]
+Description=Strata LLM inference server (Qwen3.8-Flash-Next IQ3_S) on 127.0.0.1:2026
+After=network.target
+
+[Service]
+WorkingDirectory=%h/Projects/strata
+ExecStart=%h/Projects/strata/.venv/bin/python %h/Projects/strata/serve/server.py --engine strata --config %h/Projects/strata/strata-iq3_s.json --port 2026
+Restart=on-failure
+RestartSec=5
+# the python server owns the engine child; give it time to unload ~50 GB cleanly
+KillMode=mixed
+TimeoutStopSec=90
+
+[Install]
+WantedBy=default.target

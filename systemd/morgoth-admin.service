@@ -1,0 +1,12 @@
+[Unit]
+Description=Morgoth admin: start/stop/restart strata over HTTP on 127.0.0.1:2027
+After=network.target
+
+[Service]
+EnvironmentFile=%h/Projects/morgoth/.env
+ExecStart=/usr/bin/python3 %h/Projects/morgoth/admin/server.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

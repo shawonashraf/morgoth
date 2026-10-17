@@ -1,0 +1,53 @@
+# All services use the host network: strata listens on 127.0.0.1:2026 only, and
+# the LiteLLM proxy and homepage widgets must reach it (and the admin service) there.
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    network_mode: host # :3000
+    environment:
+      PUID: 1000
+      PGID: 1000
+      HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS}
+      HOMEPAGE_VAR_ADMIN_TOKEN: ${ADMIN_TOKEN}
+      HOMEPAGE_VAR_LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+    volumes:
+      - ./homepage:/app/config
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: litellm-db
+    network_mode: host # :5432
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: litellm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  litellm:
+    image: ghcr.io/berriai/litellm-database:main-stable
+    container_name: litellm
+    network_mode: host # :4000, UI at /ui
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@127.0.0.1:5432/litellm
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
+      STRATA_SERVER_MORGOTH_KEY: ${STRATA_SERVER_MORGOTH_KEY}
+      STORE_MODEL_IN_DB: "True"
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

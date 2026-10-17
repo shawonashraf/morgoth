@@ -1,0 +1,7 @@
+.env
+__pycache__/
+homepage/logs/
+homepage/custom.css
+homepage/custom.js
+homepage/kubernetes.yaml
+homepage/proxmox.yaml

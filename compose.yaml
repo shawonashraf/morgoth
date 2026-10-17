@@ -6,12 +6,23 @@ services:
     container_name: caddy
     network_mode: host # 127.0.0.1:2023, the only port to publish (tailscale funnel 443 -> 2023)
     environment:
-      WEB_USER: ${WEB_USER}
-      WEB_PASSWORD_HASH: ${WEB_PASSWORD_HASH}
       ADMIN_TOKEN: ${ADMIN_TOKEN}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
+    restart: unless-stopped
+
+  auth:
+    image: python:3.12-alpine
+    container_name: auth
+    network_mode: host # 127.0.0.1:2024, only caddy talks to it
+    command: ["python", "-I", "/app/server.py"]
+    environment:
+      WEB_USER: ${WEB_USER}
+      WEB_PASSWORD: ${WEB_PASSWORD}
+      AUTH_SECRET: ${AUTH_SECRET}
+    volumes:
+      - ./auth/server.py:/app/server.py:ro
     restart: unless-stopped
 
   homepage:

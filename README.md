@@ -6,10 +6,10 @@ Caddy on `127.0.0.1:2023` is the one port to publish (Tailscale Funnel 443 -> 20
 
 | Path behind caddy | What | Login | Runs as |
 | --- | --- | --- | --- |
-| `/` | Homepage (gethomepage.dev) | caddy basic auth | docker `homepage` (:3000) |
+| `/` | Homepage (gethomepage.dev) | login page | docker `homepage` (:3000) |
 | `/litellm/v1`, `/litellm/ui` | LiteLLM proxy + UI | its own keys / UI account | docker `litellm` + `litellm-db` (:4000) |
-| `/admin/` | Strata control page | caddy basic auth | host: `morgoth-admin.service` (:2027) |
-| `/strata/` | Strata's own chat UI | caddy basic auth + strata key | host: `strata.service` (:2026) |
+| `/admin/` | Strata control page | login page | host: `morgoth-admin.service` (:2027) |
+| `/strata/` | Strata's own chat UI | login page + strata key | host: `strata.service` (:2026) |
 | not proxied | Cockpit | Linux account | host: `cockpit.socket` (:9090, all interfaces) |
 
 Locally: http://localhost:2023. Publicly, once the funnel is on: `https://<your host>`.
@@ -20,7 +20,8 @@ Locally: http://localhost:2023. Publicly, once the funnel is on: `https://<your 
   (`disable_env_credential_login: true` in `litellm/config.yaml`).
 - **LiteLLM API**: `LITELLM_MASTER_KEY` from `.env`, or a virtual key made in the UI. Base URL
   `http://localhost:4000/litellm/v1` locally or `https://<funnel host>/litellm/v1`, model `qwen3.8-flash-next`.
-- **Homepage, control page, strata UI**: caddy basic auth, `WEB_USER` / `WEB_PASSWORD` from `.env`. Caddy injects
+- **Homepage, control page, strata UI**: the login page at `/auth/login`, `WEB_USER` / `WEB_PASSWORD` from `.env`.
+  `auth/server.py` sets a signed session cookie (30 days, `AUTH_SECRET`); `/auth/logout` clears it. Caddy injects
   `ADMIN_TOKEN` towards the control page, so there is no second prompt. Direct access to :2027 still takes
   `ADMIN_TOKEN` (any username, or `Authorization: Bearer`).
 - **Cockpit**: your Linux account.
@@ -67,7 +68,8 @@ curl http://127.0.0.1:2023/litellm/v1/chat/completions -H "Authorization: Bearer
 
 ```
 compose.yaml            caddy + homepage + litellm + postgres, all on the host network
-caddy/Caddyfile         path routing + basic auth; the only published port
+caddy/Caddyfile         path routing + forward_auth; the only published port
+auth/server.py          login page + session cookie (forward-auth backend), stdlib python; auth/test_auth.py
 homepage/               gethomepage config (services.yaml is the tile list)
 litellm/config.yaml     model list + general_settings
 admin/server.py         control page, stdlib python, no deps; admin/test_admin.py
@@ -81,7 +83,7 @@ systemd/*.service       user units, symlinked into ~/.config/systemd/user by ins
 - Everything binds to localhost except Cockpit (`*:9090`), which is not behind caddy; use `tailscale serve`
   (tailnet-only) for it if needed.
 - LiteLLM runs with `SERVER_ROOT_PATH=/litellm`, so its local API is also under `/litellm` on :4000.
-- New password for the caddy login: `docker run --rm caddy:2-alpine caddy hash-password --plaintext '<pw>'`, put the
-  hash in `.env` as `WEB_PASSWORD_HASH='...'` (single quotes, it contains `$`), then `docker compose up -d caddy`.
+- New login password: edit `WEB_PASSWORD` in `.env`, then `docker compose up -d auth`. Rotating `AUTH_SECRET` logs
+  every browser out.
 - `loginctl enable-linger <user>` keeps the user units alive without a login session.
-- Test: `python3 -m unittest admin/test_admin.py`
+- Tests: `python3 -m unittest admin/test_admin.py auth/test_auth.py`

@@ -8,3 +8,7 @@
     - Homepage:
         - abbr: HP
           href: https://gethomepage.dev/configs/
+- Session:
+    - Log out:
+        - abbr: ⏏
+          href: /auth/logout

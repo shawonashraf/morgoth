@@ -3,7 +3,18 @@
 	default_bind 127.0.0.1
 }
 
+# Login page + session cookie, served by auth/server.py (see /auth/login, /auth/logout)
+(login) {
+	forward_auth 127.0.0.1:2024 {
+		uri /auth/verify
+	}
+}
+
 http://:2023 {
+	handle /auth/* {
+		reverse_proxy 127.0.0.1:2024
+	}
+
 	# LiteLLM keeps its own keys and UI login (SERVER_ROOT_PATH=/litellm, so no prefix stripping)
 	handle /litellm/* {
 		reverse_proxy 127.0.0.1:4000
@@ -12,28 +23,28 @@ http://:2023 {
 	redir /admin /admin/
 	redir /strata /strata/
 
-	# Control page: caddy's login replaces the page's own token prompt
-	handle_path /admin/* {
-		basic_auth {
-			{$WEB_USER} {$WEB_PASSWORD_HASH}
-		}
-		reverse_proxy 127.0.0.1:2027 {
-			header_up Authorization "Bearer {$ADMIN_TOKEN}"
+	# Control page: the login above replaces the page's own token prompt
+	handle /admin/* {
+		route { # route keeps this order: check the login on the full path, then strip the prefix
+			import login
+			uri strip_prefix /admin
+			reverse_proxy 127.0.0.1:2027 {
+				header_up Authorization "Bearer {$ADMIN_TOKEN}"
+			}
 		}
 	}
 
 	# Strata's own chat UI (asks for the strata API key itself)
-	handle_path /strata/* {
-		basic_auth {
-			{$WEB_USER} {$WEB_PASSWORD_HASH}
+	handle /strata/* {
+		route {
+			import login
+			uri strip_prefix /strata
+			reverse_proxy 127.0.0.1:2026
 		}
-		reverse_proxy 127.0.0.1:2026
 	}
 
 	handle {
-		basic_auth {
-			{$WEB_USER} {$WEB_PASSWORD_HASH}
-		}
+		import login
 		reverse_proxy 127.0.0.1:3000
 	}
 }

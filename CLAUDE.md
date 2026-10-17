@@ -14,15 +14,19 @@ Homepage + LiteLLM proxy + control page for the strata LLM server on this machin
 - LiteLLM env-credential login is disabled on purpose. The only UI login is the admin account in the database.
   Do not add `UI_USERNAME` / `UI_PASSWORD` back.
 - The control page checks only the password (`ADMIN_TOKEN`); the username is ignored. Behind caddy (`/admin/`)
-  caddy's basic auth is the login and it injects the token itself.
+  the login page is the auth and caddy injects the token itself.
 - Caddy (`caddy/Caddyfile`, `127.0.0.1:2023`) is the only port exposed by Tailscale Funnel. Caddy's admin API sits on
-  its default `127.0.0.1:2019`, so do not reuse 2019. `WEB_PASSWORD_HASH` in `.env` must stay single-quoted.
+  its default `127.0.0.1:2019`, so do not reuse 2019.
+- Login = `auth/server.py` (container `auth`, 127.0.0.1:2024) via caddy `forward_auth`. The protected `handle` blocks
+  use `route { import login; uri strip_prefix ...; reverse_proxy }` on purpose: `handle_path` would strip the prefix
+  before the auth check and break the return-to URL. The page template uses `{{rd}}` placeholders, not `%` formatting,
+  because the CSS contains `%`.
 - LiteLLM uses `SERVER_ROOT_PATH=/litellm`; its API is `/litellm/v1` everywhere, including on :4000 directly.
 - Bind-mounted configs (`litellm/config.yaml`, `caddy/Caddyfile`) need `docker compose restart <svc>`; `up -d` won't notice.
 
 ## Working here
 
-- Keep the admin service dependency-free (python3 stdlib). Run `python3 -m unittest admin/test_admin.py` after touching it.
+- Keep the admin and auth services dependency-free (python3 stdlib). Run `python3 -m unittest admin/test_admin.py auth/test_auth.py` after touching them.
 - Validate compose changes with `docker compose config -q` before `up`.
 - Restarting `strata.service` reloads ~50 GB of model weights and takes 1-3 minutes. Do not restart it to "check" things;
   use `curl -u admin:$ADMIN_TOKEN http://127.0.0.1:2027/status` instead.

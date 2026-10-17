@@ -36,8 +36,3 @@
         icon: mdi-power
         href: /admin/
         description: start / stop / restart the model server
-    - Cockpit:
-        icon: cockpit
-        href: https://localhost:9090/
-        description: system admin · services, logs, terminal, updates
-        siteMonitor: https://127.0.0.1:9090/

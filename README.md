@@ -1,41 +1,71 @@
 # morgoth
 
-Single front door for this machine's services. Strata keeps running as before on `127.0.0.1:2026`.
+A single front door for a self-hosted LLM box. One reverse proxy, one login page, and a dashboard in
+front of a local [Strata](https://github.com/Niko1221/Strata) inference server, a [LiteLLM](https://docs.litellm.ai)
+proxy, and whatever else runs on the machine. Built to be published through a single port, for example with
+[Tailscale Funnel](https://tailscale.com/kb/1223/funnel).
 
-Caddy on `127.0.0.1:2023` is the one port to publish (Tailscale Funnel 443 -> 2023). Everything else is loopback-only.
+```
+internet ── Tailscale Funnel (TLS) ──> caddy 127.0.0.1:2023
+                                          ├─ /            homepage      (login page)
+                                          ├─ /admin/      strata control page (login page, token injected)
+                                          ├─ /strata/     strata's own chat UI (login page)
+                                          ├─ /litellm/    LiteLLM API + UI (its own keys / accounts)
+                                          ├─ /hermes/     Hermes Agent gateway (its own login)
+                                          └─ /auth/       login + session cookie service
+```
 
-| Path behind caddy | What | Login | Runs as |
+Everything except caddy listens on loopback only.
+
+## What's in the box
+
+| Piece | Runs as | Port | Notes |
 | --- | --- | --- | --- |
-| `/` | Homepage (gethomepage.dev) | login page | docker `homepage` (:3000) |
-| `/litellm/v1`, `/litellm/ui` | LiteLLM proxy + UI | its own keys / UI account | docker `litellm` + `litellm-db` (:4000) |
-| `/admin/` | Strata control page | login page | host: `morgoth-admin.service` (:2027) |
-| `/strata/` | Strata's own chat UI | login page + strata key | host: `strata.service` (:2026) |
-| `/hermes/` | Hermes Agent gateway | its own login | host process started by you (:9119) |
-| not proxied | Cockpit | Linux account | host: `cockpit.socket` (:9090, all interfaces) |
+| [caddy](caddy/Caddyfile) | docker | 2023 | path routing, `forward_auth` to the login service |
+| [auth](auth/server.py) | docker | 2024 | login page; stateless HMAC-signed session cookie, no database |
+| [homepage](homepage/) | docker | 3000 | [gethomepage.dev](https://gethomepage.dev) dashboard with live status widgets |
+| [litellm](litellm/config.yaml) + postgres | docker | 4000, 5432 | OpenAI-compatible proxy, virtual keys, logs, spend |
+| [admin](admin/server.py) | systemd user unit | 2027 | start / stop / restart the model server, tail its logs |
+| strata | systemd user unit | 2026 | the inference server itself, unchanged |
 
-Locally: http://localhost:2023. Publicly, once the funnel is on: `https://<your host>`.
+The two Python services use only the standard library and have unit tests.
 
-## Logins
+## Requirements
 
-- **LiteLLM UI**: the admin account created in the UI (stored in postgres). The shared env login is disabled
-  (`disable_env_credential_login: true` in `litellm/config.yaml`).
-- **LiteLLM API**: `LITELLM_MASTER_KEY` from `.env`, or a virtual key made in the UI. Base URL
-  `http://localhost:4000/litellm/v1` locally or `https://<funnel host>/litellm/v1`, model `qwen3.8-flash-next`.
-- **Homepage, control page, strata UI**: the login page at `/auth/login`, `WEB_USER` / `WEB_PASSWORD` from `.env`.
-  `auth/server.py` sets a signed session cookie (30 days, `AUTH_SECRET`); `/auth/logout` clears it. Caddy injects
-  `ADMIN_TOKEN` towards the control page, so there is no second prompt. Direct access to :2027 still takes
-  `ADMIN_TOKEN` (any username, or `Authorization: Bearer`).
-- **Cockpit**: your Linux account.
+- Linux with systemd, docker and the compose plugin.
+- A working Strata install. The unit file assumes `~/Projects/strata` with a `.venv` and a `strata-<model>.json`
+  config; edit [systemd/strata.service](systemd/strata.service) if yours differs.
+- This repo checked out at `~/Projects/morgoth` (the admin unit's `EnvironmentFile` points there).
 
-Secrets live in `.env` (gitignored, see `.env.example`).
-
-## Run
+## Quick start
 
 ```sh
-./install.sh            # links + enables the two user units, starts strata, docker compose up -d
-docker compose up -d    # just the containers
-systemctl --user restart strata.service   # or use the control page / API below
+cp .env.example .env            # fill in every value; generators are noted inline
+./install.sh                    # links + enables the user units, starts strata, docker compose up -d
 ```
+
+Then open http://localhost:2023 and sign in with `WEB_USER` / `WEB_PASSWORD`.
+
+To publish it:
+
+```sh
+sudo tailscale funnel --bg 2023
+```
+
+`install.sh` is re-runnable. If a strata process is already running outside systemd, it is stopped and started again
+as `strata.service` (the model reloads, which takes a minute or two).
+
+## Configuration
+
+All secrets live in `.env` (gitignored). See [.env.example](.env.example) for the list. In short:
+
+| Variable | Used by |
+| --- | --- |
+| `STRATA_SERVER_MORGOTH_KEY` | strata's API key, passed to LiteLLM and the admin status check |
+| `LITELLM_MASTER_KEY`, `LITELLM_SALT_KEY`, `POSTGRES_PASSWORD` | LiteLLM. Never change the salt key after first start |
+| `ADMIN_TOKEN` | the control page; caddy injects it after you pass the login page |
+| `WEB_USER`, `WEB_PASSWORD`, `AUTH_SECRET` | the login page and its session cookie |
+| `HOMEPAGE_ALLOWED_HOSTS` | homepage's host check; set it to your public hostname |
 
 After editing `.env`, `litellm/config.yaml` or `caddy/Caddyfile`:
 
@@ -43,48 +73,59 @@ After editing `.env`, `litellm/config.yaml` or `caddy/Caddyfile`:
 systemctl --user restart morgoth-admin.service && docker compose up -d && docker compose restart litellm caddy
 ```
 
-Tailscale Funnel (once, needs root or the tailscale operator):
+(bind-mounted config files are not noticed by `up -d`, hence the explicit restart.)
+
+## Using it
+
+LiteLLM is the API everyone should talk to. Base URL `https://<your host>/litellm/v1` (locally
+`http://localhost:4000/litellm/v1`), model name from `litellm/config.yaml`, key = `LITELLM_MASTER_KEY` or a virtual
+key made in the UI at `/litellm/ui`.
 
 ```sh
-sudo tailscale funnel --bg 2023
-tailscale funnel status
+curl https://<your host>/litellm/v1/chat/completions -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen3.8-flash-next","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-Control API:
+The control page at `/admin/` has Start / Restart / Stop buttons and a log tail. The same thing as an API, directly on
+the host:
 
 ```sh
 curl -u admin:$ADMIN_TOKEN http://127.0.0.1:2027/status
 curl -u admin:$ADMIN_TOKEN -X POST http://127.0.0.1:2027/restart   # also /start /stop, GET /logs
 ```
 
-Chat through the proxy:
+`/auth/logout` ends the browser session.
+
+## LiteLLM UI accounts
+
+On first start, log in to `/litellm/ui` with the master key, create a proper admin user, then keep
+`disable_env_credential_login: true` in `litellm/config.yaml` (already set) so the master key can no longer be used to
+sign in to the UI.
+
+## Adapting it
+
+- **Different model or server**: change `model_list` in `litellm/config.yaml` and `ExecStart` in
+  `systemd/strata.service`. The admin service only needs the unit name (`STRATA_UNIT`) and the `/v1/models` URL.
+- **Another service behind the proxy**: add a `handle` block to the Caddyfile and a tile to `homepage/services.yaml`.
+  Add `import login` inside a `route { ... }` to put it behind the login page; see the `/admin/` block for the
+  prefix-stripping pattern.
+- **No Tailscale**: anything that terminates TLS and forwards to `127.0.0.1:2023` works (cloudflared, nginx, caddy
+  with a real domain).
+
+## Security notes
+
+- The login page has a one-second delay on failed attempts but no lockout. Use a long random password.
+- Sessions last 30 days (`AUTH_TTL_SECONDS`). Rotating `AUTH_SECRET` logs every browser out.
+- Services with their own authentication (LiteLLM, Hermes) are deliberately not behind the login page so their API
+  clients keep working.
+- Without `loginctl enable-linger <user>`, the systemd user units stop when you log out.
+
+## Development
 
 ```sh
-curl http://127.0.0.1:2023/litellm/v1/chat/completions -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3.8-flash-next","messages":[{"role":"user","content":"hi"}]}'
+python3 -m unittest admin/test_admin.py auth/test_auth.py
+docker compose config -q
 ```
 
-## Layout
-
-```
-compose.yaml            caddy + homepage + litellm + postgres, all on the host network
-caddy/Caddyfile         path routing + forward_auth; the only published port
-auth/server.py          login page + session cookie (forward-auth backend), stdlib python; auth/test_auth.py
-homepage/               gethomepage config (services.yaml is the tile list)
-litellm/config.yaml     model list + general_settings
-admin/server.py         control page, stdlib python, no deps; admin/test_admin.py
-systemd/*.service       user units, symlinked into ~/.config/systemd/user by install.sh
-```
-
-## Notes
-
-- Containers use the host network because strata only listens on loopback.
-- The admin service is not a container: it must call `systemctl --user` on the host.
-- Everything binds to localhost except Cockpit (`*:9090`), which is not behind caddy; use `tailscale serve`
-  (tailnet-only) for it if needed.
-- LiteLLM runs with `SERVER_ROOT_PATH=/litellm`, so its local API is also under `/litellm` on :4000.
-- New login password: edit `WEB_PASSWORD` in `.env`, then `docker compose up -d auth`. Rotating `AUTH_SECRET` logs
-  every browser out.
-- `loginctl enable-linger <user>` keeps the user units alive without a login session.
-- Tests: `python3 -m unittest admin/test_admin.py auth/test_auth.py`
+See [CLAUDE.md](CLAUDE.md) for the non-obvious decisions.

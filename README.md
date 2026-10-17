@@ -135,3 +135,7 @@ docker compose config -q
 ```
 
 See [CLAUDE.md](CLAUDE.md) for the non-obvious decisions.
+
+## License
+
+[MIT](LICENSE)

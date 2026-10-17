@@ -29,10 +29,10 @@ docker compose up -d    # just the containers
 systemctl --user restart strata.service   # or use the control page / API below
 ```
 
-After editing `.env`:
+After editing `.env` or `litellm/config.yaml`:
 
 ```sh
-systemctl --user restart morgoth-admin.service && docker compose up -d
+systemctl --user restart morgoth-admin.service && docker compose up -d && docker compose restart litellm
 ```
 
 Control API:

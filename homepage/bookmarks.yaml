@@ -12,3 +12,4 @@
     - Log out:
         - abbr: ⏏
           href: /auth/logout
+          description: end this browser session

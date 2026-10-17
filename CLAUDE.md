@@ -13,7 +13,12 @@ Homepage + LiteLLM proxy + control page for the strata LLM server on this machin
 - `LITELLM_SALT_KEY` must never change once set; it encrypts credentials stored in postgres.
 - LiteLLM env-credential login is disabled on purpose. The only UI login is the admin account in the database.
   Do not add `UI_USERNAME` / `UI_PASSWORD` back.
-- The control page checks only the password (`ADMIN_TOKEN`); the username is ignored.
+- The control page checks only the password (`ADMIN_TOKEN`); the username is ignored. Behind caddy (`/admin/`)
+  caddy's basic auth is the login and it injects the token itself.
+- Caddy (`caddy/Caddyfile`, `127.0.0.1:2023`) is the only port exposed by Tailscale Funnel. Caddy's admin API sits on
+  its default `127.0.0.1:2019`, so do not reuse 2019. `WEB_PASSWORD_HASH` in `.env` must stay single-quoted.
+- LiteLLM uses `SERVER_ROOT_PATH=/litellm`; its API is `/litellm/v1` everywhere, including on :4000 directly.
+- Bind-mounted configs (`litellm/config.yaml`, `caddy/Caddyfile`) need `docker compose restart <svc>`; `up -d` won't notice.
 
 ## Working here
 

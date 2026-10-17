@@ -1,0 +1,39 @@
+# Single door for every service. Plain HTTP on 127.0.0.1:2023; Tailscale Funnel terminates TLS in front.
+{
+	default_bind 127.0.0.1
+}
+
+http://:2023 {
+	# LiteLLM keeps its own keys and UI login (SERVER_ROOT_PATH=/litellm, so no prefix stripping)
+	handle /litellm/* {
+		reverse_proxy 127.0.0.1:4000
+	}
+
+	redir /admin /admin/
+	redir /strata /strata/
+
+	# Control page: caddy's login replaces the page's own token prompt
+	handle_path /admin/* {
+		basic_auth {
+			{$WEB_USER} {$WEB_PASSWORD_HASH}
+		}
+		reverse_proxy 127.0.0.1:2027 {
+			header_up Authorization "Bearer {$ADMIN_TOKEN}"
+		}
+	}
+
+	# Strata's own chat UI (asks for the strata API key itself)
+	handle_path /strata/* {
+		basic_auth {
+			{$WEB_USER} {$WEB_PASSWORD_HASH}
+		}
+		reverse_proxy 127.0.0.1:2026
+	}
+
+	handle {
+		basic_auth {
+			{$WEB_USER} {$WEB_PASSWORD_HASH}
+		}
+		reverse_proxy 127.0.0.1:3000
+	}
+}

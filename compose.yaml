@@ -1,6 +1,19 @@
 # All services use the host network: strata listens on 127.0.0.1:2026 only, and
 # the LiteLLM proxy and homepage widgets must reach it (and the admin service) there.
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    network_mode: host # 127.0.0.1:2023, the only port to publish (tailscale funnel 443 -> 2023)
+    environment:
+      WEB_USER: ${WEB_USER}
+      WEB_PASSWORD_HASH: ${WEB_PASSWORD_HASH}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    restart: unless-stopped
+
   homepage:
     image: ghcr.io/gethomepage/homepage:latest
     container_name: homepage
@@ -44,6 +57,7 @@ services:
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY}
       STRATA_SERVER_MORGOTH_KEY: ${STRATA_SERVER_MORGOTH_KEY}
       STORE_MODEL_IN_DB: "True"
+      SERVER_ROOT_PATH: /litellm # served behind caddy at /litellm (API becomes /litellm/v1)
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro
     depends_on:
@@ -53,3 +67,4 @@ services:
 
 volumes:
   pgdata:
+  caddy_data:

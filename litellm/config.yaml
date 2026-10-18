@@ -17,3 +17,4 @@ general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
   database_url: os.environ/DATABASE_URL
   disable_env_credential_login: true
+  hide_default_credentials_hint: true # the login page otherwise advertises admin + master key
